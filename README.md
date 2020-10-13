@@ -15,6 +15,10 @@ The infotext show how many slots of inventory are occupied.
 
 ![Meseboxes](/doc/infotext.png)
 
+Ready for Pipeworks.
+
+![Meseboxes](/doc/pipeworks.png)
+
 ## Crafting
 
 The crafting recipe crafts a Yellow Mesebox
