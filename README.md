@@ -15,7 +15,7 @@ The infotext show how many slots of inventory are occupied.
 
 ![Meseboxes](/doc/infotext.png)
 
-Ready for Pipeworks.
+Ready for Pipeworks! Can be placed by a deployer and picked up by a node breaker for easy automation.
 
 ![Meseboxes](/doc/pipeworks.png)
 
