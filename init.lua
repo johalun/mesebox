@@ -236,13 +236,7 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 		ninv:set_list("main", iinv_main)
 		ninv:set_size("main", 8*3)
 
-		-- update infotext
-		local size = 24
-		local count = 0
-		for i = 1, size do
-			if not ninv:get_stack("main", i):is_empty() then count = count + 1 end
-		end
-		nmeta:set_string("infotext", desc.." ["..count.."/"..size.."]")
+		mesebox.mesebox.update_infotext(pos, desc)
 
 		if pipeworks_enabled then
 			pipeworks.after_place(pos)
@@ -349,9 +343,17 @@ minetest.register_on_craft(
 			end
 		end
 		if old then
-			local ometa = old:get_meta():to_table()
+			local ometa = old:get_meta()
 			local nmeta = itemstack:get_meta()
-			nmeta:from_table(ometa)
+			local new_color, new_desc = itemstack:get_description():match("(%w+)(.+)")
+			local old_color, old_desc = ometa:get_string("description"):match("(%w+)(.+)")
+
+			-- Transfer items
+			nmeta:from_table(ometa:to_table())
+
+			-- Update infotext with new color
+			nmeta:set_string("description", new_color..old_desc)
+
 			return itemstack
 		end
 	end
