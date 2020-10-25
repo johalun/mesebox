@@ -347,6 +347,9 @@ minetest.register_on_craft(
 			local nmeta = itemstack:get_meta()
 			local new_color, new_desc = itemstack:get_description():match("(%w+)(.+)")
 			local old_color, old_desc = ometa:get_string("description"):match("(%w+)(.+)")
+			if not old_desc then
+				old_desc = ""
+			end
 
 			-- Transfer items
 			nmeta:from_table(ometa:to_table())
