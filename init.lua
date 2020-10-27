@@ -1,35 +1,46 @@
 -- Mesebox
 
--- XXX: Public because default.chest was so. Maybe make private if it makes
--- no sense for a public API here.
-mesebox = {}
-mesebox.mesebox = {}
+local mesebox = {}
+mesebox.open_meseboxs = {}
+mesebox.variants = {
+	white = "White Mesebox",
+	black = "Black Mesebox",
+	red = "Red Mesebox",
+	blue = "Blue Mesebox",
+	green = "Green Mesebox",
+	yellow = "Yellow Mesebox",
+	orange = "Orange Mesebox",
+	violet = "Violet Mesebox",
+}
 
 local pipeworks_enabled = minetest.get_modpath("pipeworks") ~= nil
 
-function mesebox.mesebox.get_mesebox_formspec(pos)
+function mesebox.get_mesebox_formspec(pos)
+	local meta = minetest.get_meta(pos)
 	local spos = pos.x .. "," .. pos.y .. "," .. pos.z
-	local formspec = "size[8,8.75]" ..
-		"label[0,0;"..minetest.formspec_escape(minetest.colorize("#fff", "Mesebox")).."]"..
-		"list[nodemeta:" .. spos .. ";main;0,0.5;8,3;]" ..
+	local alias = meta:get_string("alias") and meta:get_string("alias") or meta:get_string("description")
+	local formspec = "size[8,8.5]" ..
+		"field[0.3,0.1;4,1;alias;;" .. alias  .. "]"..
+		"button_exit[4,-0.2;2,1;save;Update Name]"..
+		"list[nodemeta:" .. spos .. ";main;0,0.8;8,3;]" ..
 		"label[0,4.0;"..minetest.formspec_escape(minetest.colorize("#fff", "Inventory")).."]"..
 		"list[current_player;main;0,4.5;8,1;]"..
 		default.get_hotbar_bg(0,4.5,8,1)..
-		"list[current_player;main;0,5.75;8,3;8]"..
-		default.get_hotbar_bg(0,5.75,8,3)..
+		"list[current_player;main;0,5.7;8,3;8]"..
+		default.get_hotbar_bg(0,5.7,8,3)..
 		"listring[nodemeta:" .. spos .. ";main]" ..
 		"listring[current_player;main]"
 	return formspec
 end
 
-function mesebox.mesebox.mesebox_lid_close(pn)
-	local mesebox_open_info = mesebox.mesebox.open_meseboxs[pn]
+function mesebox.mesebox_lid_close(pn)
+	local mesebox_open_info = mesebox.open_meseboxs[pn]
 	local pos = mesebox_open_info.pos
 	local sound = mesebox_open_info.sound
 	local swap = mesebox_open_info.swap
 
-	mesebox.mesebox.open_meseboxs[pn] = nil
-	for k, v in pairs(mesebox.mesebox.open_meseboxs) do
+	mesebox.open_meseboxs[pn] = nil
+	for k, v in pairs(mesebox.open_meseboxs) do
 		if v.pos.x == pos.x and v.pos.y == pos.y and v.pos.z == pos.z then
 			return true
 		end
@@ -42,7 +53,7 @@ function mesebox.mesebox.mesebox_lid_close(pn)
 		max_hear_distance = 10}, true)
 end
 
-function mesebox.mesebox.can_open(pos)
+function mesebox.can_open(pos)
 	local dirs = {}
 	dirs.n = {x = pos.x, y = pos.y, z = pos.z+1}
 	dirs.s = {x = pos.x, y = pos.y, z = pos.z-1}
@@ -63,10 +74,9 @@ function mesebox.mesebox.can_open(pos)
 	return blocked < 4
 end
 
-mesebox.mesebox.open_meseboxs = {}
 
 minetest.register_on_player_receive_fields(function(player, formname, fields)
-	if formname ~= "default:mesebox" then
+	if formname ~= "mesebox:mesebox" then
 		return
 	end
 	if not player or not fields.quit then
@@ -74,34 +84,47 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 	end
 	local pn = player:get_player_name()
 
-	if not mesebox.mesebox.open_meseboxs[pn] then
+	if not mesebox.open_meseboxs[pn] then
 		return
 	end
 
-	mesebox.mesebox.mesebox_lid_close(pn)
+	if fields.alias and fields.alias ~= "" then
+		local mesebox_open_info = mesebox.open_meseboxs[pn]
+		local pos = mesebox_open_info.pos
+		local meta = minetest.get_meta(pos)
+		meta:set_string("alias", fields.alias)
+		mesebox.update_ratio(meta)
+		mesebox.update_infotext(meta)
+	end
+
+	mesebox.mesebox_lid_close(pn)
 	return true
 end)
 
 minetest.register_on_leaveplayer(function(player)
 	local pn = player:get_player_name()
-	if mesebox.mesebox.open_meseboxs[pn] then
-		mesebox.mesebox.mesebox_lid_close(pn)
+	if mesebox.open_meseboxs[pn] then
+		mesebox.mesebox_lid_close(pn)
 	end
 end)
 
-function mesebox.mesebox.update_infotext(pos, desc)
-	-- update infotext
-	local nmeta = minetest.get_meta(pos)
-	local ninv = nmeta:get_inventory()
+function mesebox.update_ratio(meta)
+	-- update ratio
+	local inv = meta:get_inventory()
 	local size = 24
 	local count = 0
 	for i = 1, size do
-		if not ninv:get_stack("main", i):is_empty() then count = count + 1 end
+		if not inv:get_stack("main", i):is_empty() then count = count + 1 end
 	end
-	nmeta:set_string("infotext", desc.." ["..count.."/"..size.."]")
+	meta:set_string("ratio", "["..count.."/"..size.."]")
 end
 
-function mesebox.mesebox.register_mesebox(name, color, desc)
+function mesebox.update_infotext(meta)
+	-- update infotext
+	meta:set_string("infotext", meta:get_string("alias") .. " " .. meta:get_string("ratio"))
+end
+
+function mesebox.register_mesebox(name, color, desc)
 	local def = {}
 	def.description = desc
 	def.paramtype = "light"
@@ -116,16 +139,15 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 	def.stack_max = 1
 	def.drop = ""
 
+	-- Called every time the item is placed in the world, before 'after_place_node'.
 	def.on_construct = function(pos)
-		local meta = minetest.get_meta(pos)
-		meta:set_string("infotext", desc.." [0/24]")
-		local inv = meta:get_inventory()
-		inv:set_size("main", 8*3)
+		-- Nothing to do here, everything is initialized in
+		-- 'after_place_node'
 	end
 
 	def.on_rightclick = function(pos, node, clicker)
 		-- XXX: The Scanner is currently blocking from opening so don't do this for now.
-		-- if not mesebox.mesebox.can_open(pos) then
+		-- if not mesebox.can_open(pos) then
 		-- 	return
 		-- end
 		minetest.sound_play(def.sound_open, {gain = 0.5, pos = pos,
@@ -134,8 +156,8 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 					  param2 = node.param2 })
 		minetest.after(0.2, minetest.show_formspec,
 			       clicker:get_player_name(),
-			       "default:mesebox", mesebox.mesebox.get_mesebox_formspec(pos))
-		mesebox.mesebox.open_meseboxs[clicker:get_player_name()] = {
+			       "mesebox:mesebox", mesebox.get_mesebox_formspec(pos))
+		mesebox.open_meseboxs[clicker:get_player_name()] = {
 			pos = pos, sound = def.sound_close, swap = name
 		}
 	end
@@ -164,11 +186,15 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 	end
 
 	def.on_metadata_inventory_put = function(pos, listname, index, stack, player)
-		mesebox.mesebox.update_infotext(pos, desc)
+		local meta = minetest.get_meta(pos)
+		mesebox.update_ratio(meta)
+		mesebox.update_infotext(meta)
 	end
 
 	def.on_metadata_inventory_take = function(pos, listname, index, stack, player)
-		mesebox.mesebox.update_infotext(pos, desc)
+		local meta = minetest.get_meta(pos)
+		mesebox.update_ratio(meta)
+		mesebox.update_infotext(meta)
 	end
 
 	def.tube = {
@@ -188,7 +214,6 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 		input_inventory = "main",
 		connect_sides = {left = 1, right = 1, front = 1, back = 1, bottom = 1, top = 1}
 	}
-
 
 	local def_opened = table.copy(def)
 	local def_closed = table.copy(def)
@@ -231,12 +256,28 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 	def_closed.after_place_node = function(pos, placer, itemstack, pointed_thing)
 		local nmeta = minetest.get_meta(pos)
 		local ninv = nmeta:get_inventory()
-		local imeta = itemstack:get_metadata()
-		local iinv_main = minetest.deserialize(imeta)
-		ninv:set_list("main", iinv_main)
+		local imeta = itemstack:get_meta()
+
+		-- Need to re-construct the Node's inventory each time it's placed.
 		ninv:set_size("main", 8*3)
 
-		mesebox.mesebox.update_infotext(pos, desc)
+		local data_str = imeta:get_string("data")
+		if data_str == "" then
+			-- This Mesebox is placed for the first time, set valid defaults.
+			nmeta:set_string("alias", desc)
+			nmeta:set_string("ratio", "[0/24]")
+		else
+			local data = minetest.deserialize(data_str)
+
+			-- Move inventory from ItemStack to Node.
+			ninv:set_list("main", data.items)
+
+			-- Copy internal variables.
+			for k,v in pairs(data.fields) do
+				nmeta:set_string(k,v)
+			end
+		end
+		mesebox.update_infotext(nmeta)
 
 		if pipeworks_enabled then
 			pipeworks.after_place(pos)
@@ -253,35 +294,51 @@ function mesebox.mesebox.register_mesebox(name, color, desc)
 		end
 	end
 
-	def_closed.after_dig_node = function(pos, oldnode, oldmeta, digger)
+	def_closed.after_dig_node = function(pos, oldnode, oldmetatbl, digger)
+		-- NOTE: oldmeta is in table format
 		if not digger then
 			return
 		end
 
-		local inv = oldmeta.inventory.main
+		local inv = oldmetatbl.inventory.main
+		-- These can be nil if the mesebox we're picking up is an older version.
+		-- Default to reasonable values instead of crashing.
+		if not oldmetatbl.fields or not oldmetatbl.fields.ratio or not oldmetatbl.fields.alias then
+			oldmetatbl.fields = {
+				ratio = "",
+				alias = desc,
+			}
+		end
+		local ratio = oldmetatbl.fields.ratio
+		local alias = oldmetatbl.fields.alias
 
+		-- Move items from the Node to the ItemStack.
 		local items = {}
-		local size = 0
-		local count = 0
 		for i,v in ipairs(inv) do
 			items[i] = v:to_string()
-			if items[i] ~= "" then
-				count = count + 1
-			end
-			size = size + 1
 		end
-		local data = minetest.serialize(items)
-		local boxitem = ItemStack("mesebox:"..color.."_mesebox")
-		boxitem:set_metadata(data)
-
-		local meta = boxitem:get_meta()
-		meta:set_string("description", desc.." ["..count.."/"..size.."]")
+		-- Copy our internal state variables.
+		local fields = {}
+		for k,v in pairs(oldmetatbl.fields) do
+			fields[k] = v
+		end
+		local data = {
+			items = items,
+			fields = fields,
+		}
+		local istack = ItemStack("mesebox:"..color.."_mesebox")
+		local imeta = istack:get_meta()
+		imeta:set_string("description", alias.." "..ratio)
+		-- Serialize and store the Node's inventory and internal variables
+		-- in the ItemStack's metadata so it can be retrieved later when
+		-- it is again placed in the world.
+		imeta:set_string("data", minetest.serialize(data))
 
 		local dinv = digger:get_inventory()
-		if dinv:room_for_item("main", boxitem) then
-			dinv:add_item("main", boxitem)
+		if dinv:room_for_item("main", istack) then
+			dinv:add_item("main", istack)
 		else
-			minetest.add_item(pos, boxitem)
+			minetest.add_item(pos, istack)
 		end
 
 		if pipeworks_enabled then
@@ -295,20 +352,9 @@ end
 
 
 
-local meseboxes = {
-	white = "White Mesebox",
-	black = "Black Mesebox",
-	red = "Red Mesebox",
-	blue = "Blue Mesebox",
-	green = "Green Mesebox",
-	yellow = "Yellow Mesebox",
-	orange = "Orange Mesebox",
-	violet = "Violet Mesebox",
-}
-
-for color, desc in pairs(meseboxes) do
+for color, desc in pairs(mesebox.variants) do
 	local name = "mesebox:" .. color .. "_mesebox"
-	mesebox.mesebox.register_mesebox(name, color, desc)
+	mesebox.register_mesebox(name, color, desc)
 
 	minetest.register_craft({
 			type = "shapeless",
@@ -334,6 +380,7 @@ minetest.register_on_craft(
 		if minetest.get_item_group(itemstack:get_name(), "mesebox") ~= 1 then
 			return
 		end
+		-- Search for an existing Mesebox in the crafting grid and store in 'old'.
 		local old
 		for i = 1, #old_craft_grid do
 			local item = old_craft_grid[i]:get_name()
@@ -343,21 +390,30 @@ minetest.register_on_craft(
 			end
 		end
 		if old then
+			-- Crafting Mesebox with dye
 			local ometa = old:get_meta()
-			local nmeta = itemstack:get_meta()
-			local new_color, new_desc = itemstack:get_description():match("(%w+)(.+)")
-			local old_color, old_desc = ometa:get_string("description"):match("(%w+)(.+)")
-			if not old_desc then
-				old_desc = ""
+			local imeta = itemstack:get_meta()
+
+			local data = minetest.deserialize(ometa:get_string("data"))
+			if data then
+				-- Update name with name from new Mesebox and transfer table.
+				local new_desc = itemstack:get_description()
+				data.fields.alias = new_desc
+				ometa:set_string("data", minetest.serialize(data))
+				imeta:from_table(ometa:to_table())
+				imeta:set_string("description", new_desc.." "..data.fields.ratio)
+			else
+				-- No 'data' means this Mesebox has never been placed.
+				-- We set defaults in 'after_place_node' when the Mesebox is placed
+				-- into the world for the first time so leave as is here.
+				imeta:from_table(ometa:to_table())
 			end
-
-			-- Transfer items
-			nmeta:from_table(ometa:to_table())
-
-			-- Update infotext with new color
-			nmeta:set_string("description", new_color..old_desc)
-
-			return itemstack
+		else
+			-- Couldn't find existing Mesebox in the crafting grid which
+			-- means we're crafting a new one.
+			-- We set defaults in 'after_place_node' when the Mesebox is placed
+			-- into the world for the first time so leave as is here.
 		end
+		return itemstack
 	end
 )
