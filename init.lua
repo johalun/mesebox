@@ -1,6 +1,19 @@
--- Mesebox
+-- Clamp function
+local function clamp(val, val_min, val_max)
+	return math.min(math.max(val, val_min), val_max)
+end
 
-local mesebox = {}
+-- Box width not advertised in settings.txt but may be desirable for games/servers.
+local box_width_from_settings = tonumber(minetest.settings:get("mesebox_box_width")) or 8
+local box_size_from_settings = tonumber(minetest.settings:get("mesebox_box_size")) or (box_width_from_settings * 3)
+
+-- Mesebox
+local mesebox = {
+	-- Clamped to tested values. Probably works beyond.
+	box_width = clamp(box_width_from_settings, 1, 10),
+	box_size  = clamp(box_size_from_settings, 1, 50)
+}
+
 mesebox.open_meseboxs = {}
 mesebox.variants = {
 	white = "White Mesebox",
@@ -19,15 +32,20 @@ function mesebox.get_mesebox_formspec(pos)
 	local meta = minetest.get_meta(pos)
 	local spos = pos.x .. "," .. pos.y .. "," .. pos.z
 	local alias = meta:get_string("alias") and meta:get_string("alias") or meta:get_string("description")
-	local formspec = "size[8,8.5]" ..
+	local box_size = meta:get_inventory():get_size("main") or mesebox.box_size
+	local box_width = mesebox.box_width
+	local player_inv_width = 8
+	local num_rows = math.ceil(box_size / mesebox.box_width)
+	local fs_width = math.max(box_width, player_inv_width)
+	local formspec = "size[" .. fs_width ..",".. (5.5 + num_rows) .. "]" ..
 		"field[0.3,0.1;4,1;alias;;" .. alias  .. "]"..
 		"button_exit[4,-0.2;2,1;save;Update Name]"..
-		"list[nodemeta:" .. spos .. ";main;0,0.8;8,3;]" ..
-		"label[0,4.0;"..minetest.formspec_escape(minetest.colorize("#fff", "Inventory")).."]"..
-		"list[current_player;main;0,4.5;8,1;]"..
-		default.get_hotbar_bg(0,4.5,8,1)..
-		"list[current_player;main;0,5.7;8,3;8]"..
-		default.get_hotbar_bg(0,5.7,8,3)..
+		"list[nodemeta:" .. spos .. ";main;0,0.8;" .. box_width .. "," .. num_rows .. ";]" ..
+		"label[0,"..tostring(num_rows + 1)..";"..minetest.formspec_escape(minetest.colorize("#fff", "Inventory")).."]"..
+		"list[current_player;main;0,"..tostring(num_rows+1.5)..";" .. player_inv_width .. ",1;]"..
+		default.get_hotbar_bg(0,num_rows+1.5,player_inv_width,1)..
+		"list[current_player;main;0,"..tostring(num_rows+2.7)..";" .. player_inv_width ..",3;8]"..
+		default.get_hotbar_bg(0,num_rows+2.7,player_inv_width,3)..
 		"listring[nodemeta:" .. spos .. ";main]" ..
 		"listring[current_player;main]"
 	return formspec
@@ -111,7 +129,7 @@ end)
 function mesebox.update_ratio(meta)
 	-- update ratio
 	local inv = meta:get_inventory()
-	local size = 24
+	local size = inv:get_size("main") 
 	local count = 0
 	for i = 1, size do
 		if not inv:get_stack("main", i):is_empty() then count = count + 1 end
@@ -258,17 +276,20 @@ function mesebox.register_mesebox(name, color, desc)
 		local ninv = nmeta:get_inventory()
 		local imeta = itemstack:get_meta()
 
-		-- Need to re-construct the Node's inventory each time it's placed.
-		ninv:set_size("main", 8*3)
-
 		local data_str = imeta:get_string("data")
 		if data_str == "" then
 			-- This Mesebox is placed for the first time, set valid defaults.
+			-- Need to re-construct the Node's inventory each time it's placed.
+			local box_size = mesebox.box_size
+			ninv:set_size("main", box_size)
 			nmeta:set_string("alias", desc)
-			nmeta:set_string("ratio", "[0/24]")
+			nmeta:set_string("ratio", "[0/" .. tostring(box_size) .."]")
 		else
 			local data = minetest.deserialize(data_str)
 
+			-- Need to resize the Node's inventory each time it's placed.
+			local size = #data.items
+			ninv:set_size("main", size)
 			-- Move inventory from ItemStack to Node.
 			ninv:set_list("main", data.items)
 
@@ -314,8 +335,10 @@ function mesebox.register_mesebox(name, color, desc)
 
 		-- Move items from the Node to the ItemStack.
 		local items = {}
+		local item_cnt = 0
 		for i,v in ipairs(inv) do
 			items[i] = v:to_string()
+			if not v:is_empty() then item_cnt = item_cnt + 1 end
 		end
 		-- Copy our internal state variables.
 		local fields = {}

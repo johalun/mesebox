@@ -1,0 +1,2 @@
+# Number of slots a single mesebox should have
+mesebox_box_size (Mesebox Number of Slots) int 24
